@@ -25,24 +25,41 @@ var _ = require('lodash'),
     psjon = require('./package.json'),
     settings = require('./app/config'),
     auth = require('./app/auth/index'),
+    clientCertificateAuth = require('client-certificate-auth'),
     core = require('./app/core/index');
 
 var MongoStore = connectMongo(express.session),
     httpEnabled = settings.http && settings.http.enable,
     httpsEnabled = settings.https && settings.https.enable,
+    clientAuth = settings.https && settings.https.clientAuth,
     models = all('./app/models'),
     middlewares = all('./app/middlewares'),
     controllers = all('./app/controllers'),
     app;
 
+function checkAuth(cert, callback) {
+  callback(true);
+}
+
 //
 // express.oi Setup
 //
 if (httpsEnabled) {
-     app = express().https({
-        key: fs.readFileSync(settings.https.key),
-        cert: fs.readFileSync(settings.https.cert)
-    }).io();
+    if (clientAuth) {
+        app = express().https({
+            key: fs.readFileSync(settings.https.key),
+            cert: fs.readFileSync(settings.https.cert),
+            ca: fs.readFileSync(settings.https.ca),
+            requestCert: true,
+            rejectUnauthorized: false
+        }).io();
+        app.use(clientCertificateAuth(checkAuth));
+    } else {
+        app = express().https({
+            key: fs.readFileSync(settings.https.key),
+            cert: fs.readFileSync(settings.https.cert)
+        }).io();
+    }
 } else {
     app = express().http().io();
 }
